@@ -1,0 +1,11 @@
+movie_id,title,release_year,avg_rating,num_ratings
+171011,Planet Earth II (2016),2016.0,4.45,1956
+159817,Planet Earth (2006),2006.0,4.44,2948
+170705,Band of Brothers (2001),2001.0,4.43,2811
+318,"Shawshank Redemption, The (1994)",1994.0,4.4,102929
+171495,Cosmos,,4.33,615
+858,"Godfather, The (1972)",1972.0,4.32,66440
+202439,Parasite (2019),2019.0,4.31,11670
+179135,Blue Planet II (2017),2017.0,4.3,1163
+198185,Twin Peaks (1989),1989.0,4.3,1140
+220528,Twelve Angry Men (1954),1954.0,4.29,449

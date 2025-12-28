@@ -1,0 +1,21 @@
+# Virtual environment
+venv/
+
+# Data files (too large for GitHub)
+data/raw/
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Logs
+logs/*.log
+
+# Airflow
+*.db
+airflow.cfg
+
+# IDE
+.vscode/
+.idea/
