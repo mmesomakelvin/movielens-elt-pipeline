@@ -283,13 +283,6 @@ schedule_interval='0 12 * * *'  # Cron: minute hour day month weekday
 load_staging → transform_data → data_quality → create_warehouse → run_analytics
 ```
 
-## 📸 Screenshots
-
-### Airflow DAG Graph
-![Airflow DAG](screenshots/airflow_dag.png)
-
-### Pipeline Flow
-![Pipeline](screenshots/pipeline_flow.png)
 
 ## 👤 Author
 
