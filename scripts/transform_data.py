@@ -38,11 +38,7 @@ def create_engine_connection():
 
 def clean_movies_table(engine):
     """
-    Clean the staging_movies table:
-    - Remove duplicates
-    - Handle NULL values
-    - Extract year from title
-    - Trim whitespace
+    Clean the staging_movies table.
     """
     try:
         logger.info("Cleaning staging_movies table...")
@@ -67,7 +63,9 @@ def clean_movies_table(engine):
             """))
             duplicates = result.scalar()
             logger.info(f"Movies - Duplicate movieIds: {duplicates}")
-            
+        
+        # Use begin() for transactions that modify data
+        with engine.begin() as conn:
             # Create cleaned movies table
             conn.execute(text("""
                 DROP TABLE IF EXISTS cleaned_movies
@@ -78,13 +76,11 @@ def clean_movies_table(engine):
                 SELECT DISTINCT
                     "movieId",
                     TRIM(title) as title,
-                    -- Extract year from title (format: "Movie Name (YYYY)")
                     CASE 
                         WHEN title ~ '\\(\\d{4}\\)$' 
                         THEN CAST(SUBSTRING(title FROM '\\(([0-9]{4})\\)$') AS INTEGER)
                         ELSE NULL 
                     END as release_year,
-                    -- Clean title without year
                     CASE 
                         WHEN title ~ '\\(\\d{4}\\)$' 
                         THEN TRIM(REGEXP_REPLACE(title, '\\s*\\([0-9]{4}\\)$', ''))
@@ -94,15 +90,14 @@ def clean_movies_table(engine):
                 FROM staging_movies
                 WHERE "movieId" IS NOT NULL
             """))
-            
-            conn.commit()
-            
-            # Verify cleaned table
+        
+        # Verify cleaned table
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM cleaned_movies"))
             count = result.scalar()
             logger.info(f"Created cleaned_movies table with {count:,} rows")
             
-            return count
+        return count
             
     except Exception as e:
         logger.error(f"Failed to clean movies table: {e}")
@@ -111,11 +106,7 @@ def clean_movies_table(engine):
 
 def clean_ratings_table(engine):
     """
-    Clean the staging_ratings table:
-    - Remove duplicates
-    - Handle NULL values
-    - Convert timestamp to datetime
-    - Validate rating range (0.5 to 5.0)
+    Clean the staging_ratings table.
     """
     try:
         logger.info("Cleaning staging_ratings table...")
@@ -134,7 +125,7 @@ def clean_ratings_table(engine):
             row = result.fetchone()
             logger.info(f"Ratings - Total: {row[0]:,}, NULL userId: {row[1]}, NULL movieId: {row[2]}, NULL rating: {row[3]}, Invalid rating: {row[4]}")
             
-            # Check for duplicate ratings (same user rating same movie multiple times)
+            # Check for duplicate ratings
             result = conn.execute(text("""
                 SELECT COUNT(*) as dup_count FROM (
                     SELECT "userId", "movieId", COUNT(*) 
@@ -145,13 +136,13 @@ def clean_ratings_table(engine):
             """))
             duplicates = result.scalar()
             logger.info(f"Ratings - User-Movie duplicate pairs: {duplicates}")
-            
-            # Create cleaned ratings table
+        
+        # Use begin() for transactions that modify data
+        with engine.begin() as conn:
             conn.execute(text("""
                 DROP TABLE IF EXISTS cleaned_ratings
             """))
             
-            # For duplicates, keep the most recent rating (highest timestamp)
             conn.execute(text("""
                 CREATE TABLE cleaned_ratings AS
                 SELECT DISTINCT ON ("userId", "movieId")
@@ -159,7 +150,6 @@ def clean_ratings_table(engine):
                     "movieId",
                     rating,
                     timestamp as rating_timestamp,
-                    -- Convert Unix timestamp to datetime
                     TO_TIMESTAMP(timestamp) as rating_datetime
                 FROM staging_ratings
                 WHERE "userId" IS NOT NULL 
@@ -169,15 +159,14 @@ def clean_ratings_table(engine):
                     AND rating <= 5.0
                 ORDER BY "userId", "movieId", timestamp DESC
             """))
-            
-            conn.commit()
-            
-            # Verify cleaned table
+        
+        # Verify cleaned table
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM cleaned_ratings"))
             count = result.scalar()
             logger.info(f"Created cleaned_ratings table with {count:,} rows")
             
-            return count
+        return count
             
     except Exception as e:
         logger.error(f"Failed to clean ratings table: {e}")
@@ -188,7 +177,6 @@ def show_sample_data(engine):
     """Show sample data from cleaned tables."""
     try:
         with engine.connect() as conn:
-            # Sample movies
             logger.info("Sample cleaned movies:")
             result = conn.execute(text("""
                 SELECT "movieId", clean_title, release_year, genres 
@@ -198,7 +186,6 @@ def show_sample_data(engine):
             for row in result:
                 logger.info(f"  Movie {row[0]}: {row[1]} ({row[2]}) - {row[3]}")
             
-            # Sample ratings
             logger.info("Sample cleaned ratings:")
             result = conn.execute(text("""
                 SELECT "userId", "movieId", rating, rating_datetime 
@@ -221,18 +208,14 @@ def main():
     
     start_time = datetime.now()
     
-    # Create database connection
     engine = create_engine_connection()
     
-    # Clean movies table
     logger.info("-" * 30)
     movies_count = clean_movies_table(engine)
     
-    # Clean ratings table
     logger.info("-" * 30)
     ratings_count = clean_ratings_table(engine)
     
-    # Show sample data
     logger.info("-" * 30)
     show_sample_data(engine)
     

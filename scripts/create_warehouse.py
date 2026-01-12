@@ -37,18 +37,13 @@ def create_engine_connection():
 
 
 def create_dim_movies(engine):
-    """
-    Create dimension table for movies.
-    Contains movie details: id, title, release year.
-    """
+    """Create dimension table for movies."""
     try:
         logger.info("Creating dim_movies table...")
         
-        with engine.connect() as conn:
-            # Drop if exists
+        with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS dim_movies CASCADE"))
             
-            # Create dimension table
             conn.execute(text("""
                 CREATE TABLE dim_movies (
                     movie_key SERIAL PRIMARY KEY,
@@ -60,7 +55,6 @@ def create_dim_movies(engine):
                 )
             """))
             
-            # Insert data from cleaned table
             conn.execute(text("""
                 INSERT INTO dim_movies (movie_id, title, clean_title, release_year)
                 SELECT 
@@ -70,14 +64,11 @@ def create_dim_movies(engine):
                     release_year
                 FROM cleaned_movies
             """))
-            
-            conn.commit()
-            
-            # Verify
+        
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM dim_movies"))
             count = result.scalar()
             logger.info(f"Created dim_movies with {count:,} rows")
-            
             return count
             
     except Exception as e:
@@ -86,18 +77,13 @@ def create_dim_movies(engine):
 
 
 def create_dim_genres(engine):
-    """
-    Create dimension table for genres.
-    Splits the pipe-separated genres into individual rows.
-    """
+    """Create dimension table for genres."""
     try:
         logger.info("Creating dim_genres table...")
         
-        with engine.connect() as conn:
-            # Drop if exists
+        with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS dim_genres CASCADE"))
             
-            # Create dimension table
             conn.execute(text("""
                 CREATE TABLE dim_genres (
                     genre_key SERIAL PRIMARY KEY,
@@ -106,7 +92,6 @@ def create_dim_genres(engine):
                 )
             """))
             
-            # Extract unique genres (split by pipe)
             conn.execute(text("""
                 INSERT INTO dim_genres (genre_name)
                 SELECT DISTINCT TRIM(unnest(string_to_array(genres, '|'))) as genre_name
@@ -114,19 +99,15 @@ def create_dim_genres(engine):
                 WHERE genres IS NOT NULL AND genres != ''
                 ORDER BY genre_name
             """))
-            
-            conn.commit()
-            
-            # Verify
+        
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM dim_genres"))
             count = result.scalar()
             logger.info(f"Created dim_genres with {count:,} rows")
             
-            # Show genres
             result = conn.execute(text("SELECT genre_name FROM dim_genres ORDER BY genre_name"))
             genres = [row[0] for row in result]
             logger.info(f"Genres found: {', '.join(genres)}")
-            
             return count
             
     except Exception as e:
@@ -135,18 +116,13 @@ def create_dim_genres(engine):
 
 
 def create_dim_users(engine):
-    """
-    Create dimension table for users.
-    Contains unique user IDs.
-    """
+    """Create dimension table for users."""
     try:
         logger.info("Creating dim_users table...")
         
-        with engine.connect() as conn:
-            # Drop if exists
+        with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS dim_users CASCADE"))
             
-            # Create dimension table
             conn.execute(text("""
                 CREATE TABLE dim_users (
                     user_key SERIAL PRIMARY KEY,
@@ -155,21 +131,17 @@ def create_dim_users(engine):
                 )
             """))
             
-            # Insert unique users from ratings
             conn.execute(text("""
                 INSERT INTO dim_users (user_id)
                 SELECT DISTINCT "userId"
                 FROM cleaned_ratings
                 ORDER BY "userId"
             """))
-            
-            conn.commit()
-            
-            # Verify
+        
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM dim_users"))
             count = result.scalar()
             logger.info(f"Created dim_users with {count:,} rows")
-            
             return count
             
     except Exception as e:
@@ -178,18 +150,13 @@ def create_dim_users(engine):
 
 
 def create_bridge_movie_genres(engine):
-    """
-    Create bridge table linking movies to genres.
-    (Many-to-many relationship)
-    """
+    """Create bridge table linking movies to genres."""
     try:
         logger.info("Creating bridge_movie_genres table...")
         
-        with engine.connect() as conn:
-            # Drop if exists
+        with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS bridge_movie_genres CASCADE"))
             
-            # Create bridge table
             conn.execute(text("""
                 CREATE TABLE bridge_movie_genres (
                     movie_id INTEGER NOT NULL,
@@ -198,7 +165,6 @@ def create_bridge_movie_genres(engine):
                 )
             """))
             
-            # Insert movie-genre relationships
             conn.execute(text("""
                 INSERT INTO bridge_movie_genres (movie_id, genre_key)
                 SELECT DISTINCT
@@ -208,14 +174,11 @@ def create_bridge_movie_genres(engine):
                 CROSS JOIN LATERAL unnest(string_to_array(m.genres, '|')) as gn
                 JOIN dim_genres g ON TRIM(gn) = g.genre_name
             """))
-            
-            conn.commit()
-            
-            # Verify
+        
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM bridge_movie_genres"))
             count = result.scalar()
             logger.info(f"Created bridge_movie_genres with {count:,} rows")
-            
             return count
             
     except Exception as e:
@@ -224,18 +187,13 @@ def create_bridge_movie_genres(engine):
 
 
 def create_fact_ratings(engine):
-    """
-    Create fact table for ratings.
-    Contains the measurable rating data with foreign keys to dimensions.
-    """
+    """Create fact table for ratings."""
     try:
         logger.info("Creating fact_ratings table...")
         
-        with engine.connect() as conn:
-            # Drop if exists
+        with engine.begin() as conn:
             conn.execute(text("DROP TABLE IF EXISTS fact_ratings CASCADE"))
             
-            # Create fact table
             conn.execute(text("""
                 CREATE TABLE fact_ratings (
                     rating_key SERIAL PRIMARY KEY,
@@ -248,7 +206,6 @@ def create_fact_ratings(engine):
                 )
             """))
             
-            # Insert data
             conn.execute(text("""
                 INSERT INTO fact_ratings (user_id, movie_id, rating, rating_timestamp, rating_datetime)
                 SELECT 
@@ -259,14 +216,11 @@ def create_fact_ratings(engine):
                     rating_datetime
                 FROM cleaned_ratings
             """))
-            
-            conn.commit()
-            
-            # Verify
+        
+        with engine.connect() as conn:
             result = conn.execute(text("SELECT COUNT(*) FROM fact_ratings"))
             count = result.scalar()
             logger.info(f"Created fact_ratings with {count:,} rows")
-            
             return count
             
     except Exception as e:
@@ -279,18 +233,14 @@ def create_indexes(engine):
     try:
         logger.info("Creating indexes...")
         
-        with engine.connect() as conn:
-            # Indexes on fact table
+        with engine.begin() as conn:
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_ratings_user ON fact_ratings(user_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_ratings_movie ON fact_ratings(movie_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_fact_ratings_datetime ON fact_ratings(rating_datetime)"))
-            
-            # Indexes on bridge table
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_bridge_movie ON bridge_movie_genres(movie_id)"))
             conn.execute(text("CREATE INDEX IF NOT EXISTS idx_bridge_genre ON bridge_movie_genres(genre_key)"))
-            
-            conn.commit()
-            logger.info("Indexes created successfully")
+        
+        logger.info("Indexes created successfully")
             
     except Exception as e:
         logger.error(f"Failed to create indexes: {e}")
@@ -325,31 +275,25 @@ def main():
     
     start_time = datetime.now()
     
-    # Create database connection
     engine = create_engine_connection()
     
-    # Create dimension tables
     logger.info("-" * 30)
     logger.info("Creating Dimension Tables...")
     create_dim_movies(engine)
     create_dim_genres(engine)
     create_dim_users(engine)
     
-    # Create bridge table
     logger.info("-" * 30)
     logger.info("Creating Bridge Table...")
     create_bridge_movie_genres(engine)
     
-    # Create fact table
     logger.info("-" * 30)
     logger.info("Creating Fact Table...")
     create_fact_ratings(engine)
     
-    # Create indexes
     logger.info("-" * 30)
     create_indexes(engine)
     
-    # Verify
     verify_warehouse(engine)
     
     end_time = datetime.now()
